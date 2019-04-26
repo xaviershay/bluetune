@@ -117,15 +117,14 @@ export default class App extends React.PureComponent<Props, State> {
     const possibleIntervals = Object.keys(INTERVALS);
     const n = Math.floor(Math.random() * possibleIntervals.length);
 
-    this.setState({
-      interval: possibleIntervals[n],
-      baseNote: SCALE[baseIndex],
-      stage: "guess"
-    });
-
-    // TODO: Stop playing notes
-    // TODO: Play interval
-    this.playInterval();
+    this.setState(
+      {
+        interval: possibleIntervals[n],
+        baseNote: SCALE[baseIndex],
+        stage: "guess"
+      },
+      this.playInterval
+    );
   };
 
   transitionReveal = () => {
@@ -133,21 +132,23 @@ export default class App extends React.PureComponent<Props, State> {
   };
 
   playInterval = () => {
+    Object.keys(this.notes).forEach(note => {
+      if (this.notes[note].canStop) {
+        this.notes[note].stop();
+      }
+    });
+
     const interval = INTERVALS[this.state.interval];
 
     const baseNote = this.state.baseNote;
     const baseIndex = SCALE.indexOf(baseNote);
     const secondNote = SCALE[baseIndex + interval.semitones];
 
-    this.notes[baseNote].seek(0, () =>
+    setTimeout(() => {
       this.notes[baseNote].play(() =>
-        setTimeout(
-          () =>
-            this.notes[secondNote].seek(0, () => this.notes[secondNote].play()),
-          1000
-        )
-      )
-    );
+        setTimeout(() => this.notes[secondNote].play(), 1000)
+      );
+    }, 500);
   };
 
   render() {
