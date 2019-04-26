@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -ex
+
+TMP=tmp
+DEST=android/app/src/main/res/raw/
+
+mkdir -p $TMP
+
+for x in $(ls midi); do
+  FILENAME="${x%.*}"
+  fluidsynth -ni ~/Downloads/Nice-Steinways-JNv5.8.sf2 midi/$x -F $TMP/$FILENAME.wav -r 44100
+  rm -f $DEST/$FILENAME.mp3
+  ffmpeg -i $TMP/$FILENAME.wav -f mp3 -acodec libmp3lame -ab 192000 -ar 44100 $DEST/$FILENAME.mp3
+done;
