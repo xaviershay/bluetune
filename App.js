@@ -7,7 +7,7 @@
  */
 
 import React from "react";
-import { Button, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { NativeModules } from "react-native";
 
 type Props = {};
@@ -200,104 +200,99 @@ export default class App extends React.PureComponent<Props, State> {
 
     this.playing.push(notesToPlay[0].play());
     await wait(1000);
+    // TODO: If you move from reveal to guess after replay and before second
+    // note has played, this second note will play erroneously because it hasn't
+    // been pushed into playing yet so the new player doesn't know to cancel it.
     this.setState({ replayNextEnabled: true });
     this.playing.push(notesToPlay[1].play());
   };
 
   render() {
-    switch (this.state.stage) {
-      case "loading":
-        return this.renderLoading();
-      case "splash":
-        return this.renderSplash();
-      case "guess":
-        return this.renderGuess();
-      case "reveal":
-        return this.renderReveal();
-      default:
-        return <Text>Something went wrong :(</Text>;
-    }
+    const stage = this.state.stage;
+    const showReplay = stage === "guess" || stage === "reveal";
+
+    return (
+      <View style={styles.container}>
+        {stage === "splash" && this.renderSplash()}
+        {stage === "loading" && this.renderLoading()}
+        {stage === "guess" && this.renderGuess()}
+        {stage === "reveal" && this.renderReveal()}
+        {showReplay && (
+          <TouchableOpacity
+            onPress={this.playInterval}
+            disabled={!this.state.replayNextEnabled}
+            style={{
+              backgroundColor: this.state.replayNextEnabled
+                ? "#6200EE"
+                : "#efe5fd",
+              padding: 10
+            }}
+          >
+            <Text style={styles.label}>Replay</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
   }
 
   renderLoading = () => {
     return (
-      <View style={styles.container}>
-        <Text style={[{ flex: 1, fontSize: 32 }, styles.instructions]}>
-          Loading...
-        </Text>
-      </View>
+      <Text style={[{ flex: 1, fontSize: 32 }, styles.instructions]}>
+        Loading...
+      </Text>
     );
   };
 
   renderSplash = () => {
     return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center"
-          }}
-          onPress={this.transitionGuess}
-        >
-          <Text style={[{ flex: 1, fontSize: 32 }, styles.instructions]}>
-            🎵 Tap to start 🎶
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center"
+        }}
+        onPress={this.transitionGuess}
+      >
+        <Text style={[{ flex: 1 }, styles.label]}>🎵 Tap to start 🎶</Text>
+      </TouchableOpacity>
     );
   };
 
   renderGuess = () => {
     return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={{ flex: 1, justifyContent: "space-between" }}
-          onPress={this.transitionReveal}
+      <TouchableOpacity
+        style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+        onPress={this.transitionReveal}
+      >
+        <Text
+          style={[
+            {
+              flex: 1,
+              opacity: this.state.replayNextEnabled ? 1 : 0
+            },
+            styles.label
+          ]}
         >
-          <Text
-            style={[
-              {
-                paddingTop: 32,
-                fontSize: 32,
-                opacity: this.state.replayNextEnabled ? 1 : 0
-              },
-              styles.instructions
-            ]}
-          >
-            Tap to reveal
-          </Text>
-          <Button
-            title="Replay"
-            onPress={this.playInterval}
-            disabled={!this.state.replayNextEnabled}
-          />
-        </TouchableOpacity>
-      </View>
+          Tap to reveal
+        </Text>
+      </TouchableOpacity>
     );
   };
 
   renderReveal = () => {
     return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center"
-          }}
-          onPress={this.transitionGuess}
-        >
-          <Text style={[{ flex: 1, fontSize: 32 }, styles.instructions]}>
-            {INTERVALS[this.state.interval].name}
-          </Text>
-        </TouchableOpacity>
-        <Button
-          title="Replay"
-          onPress={this.playInterval}
-          disabled={!this.state.replayNextEnabled}
-        />
-      </View>
+      <TouchableOpacity
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center"
+        }}
+        onPress={this.transitionGuess}
+      >
+        <Text style={[{ flex: 1 }, styles.label]}>
+          {INTERVALS[this.state.interval].name}
+        </Text>
+      </TouchableOpacity>
     );
   };
 }
@@ -307,10 +302,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "black"
   },
-  welcome: {
-    fontSize: 20,
-    textAlign: "center",
-    margin: 10
+  label: {
+    fontSize: 32,
+    color: "white",
+    padding: 5,
+    textAlign: "center"
   },
   instructions: {
     textAlign: "center",
