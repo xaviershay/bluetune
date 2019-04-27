@@ -7,7 +7,13 @@
  */
 
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 import { NativeModules } from "react-native";
 
 type Props = {};
@@ -15,7 +21,8 @@ type State = {|
   interval: string,
   stage: string,
   baseNote: string,
-  replayNextEnabled: boolean
+  replayNextEnabled: boolean,
+  revealOpacity: Animated.Value
 |};
 
 const makeInterval = (name, semitones) => {
@@ -134,7 +141,8 @@ export default class App extends React.PureComponent<Props, State> {
     interval: "2m",
     baseNote: "c2",
     stage: "splash",
-    replayNextEnabled: false
+    replayNextEnabled: false,
+    revealOpacity: new Animated.Value(0)
   };
 
   playing: Array<PlayingNote>;
@@ -166,19 +174,22 @@ export default class App extends React.PureComponent<Props, State> {
       {
         interval: possibleIntervals[n],
         baseNote: SCALE[baseIndex],
-        stage: "guess"
+        stage: "guess",
+        replayNextEnabled: false
       },
       this.playInterval
     );
+
+    this.state.revealOpacity.setValue(0);
   };
 
   transitionReveal = () => {
-    if (this.state.replayNextEnabled) this.setState({ stage: "reveal" });
+    if (this.state.replayNextEnabled) {
+      this.setState({ stage: "reveal" });
+    }
   };
 
   playInterval = async () => {
-    this.setState({ replayNextEnabled: false });
-
     const interval = INTERVALS[this.state.interval];
 
     const baseNote = this.state.baseNote;
@@ -204,6 +215,10 @@ export default class App extends React.PureComponent<Props, State> {
     // note has played, this second note will play erroneously because it hasn't
     // been pushed into playing yet so the new player doesn't know to cancel it.
     this.setState({ replayNextEnabled: true });
+    Animated.timing(this.state.revealOpacity, {
+      toValue: 1,
+      duration: 750
+    }).start();
     this.playing.push(notesToPlay[1].play());
   };
 
@@ -218,18 +233,18 @@ export default class App extends React.PureComponent<Props, State> {
         {stage === "guess" && this.renderGuess()}
         {stage === "reveal" && this.renderReveal()}
         {showReplay && (
-          <TouchableOpacity
-            onPress={this.playInterval}
-            disabled={!this.state.replayNextEnabled}
-            style={{
-              backgroundColor: this.state.replayNextEnabled
-                ? "#6200EE"
-                : "#efe5fd",
-              padding: 10
-            }}
-          >
-            <Text style={styles.label}>Replay</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ opacity: this.state.revealOpacity }}>
+            <TouchableOpacity
+              onPress={this.playInterval}
+              disabled={!this.state.replayNextEnabled}
+              style={{
+                backgroundColor: "#2196F3",
+                padding: 10
+              }}
+            >
+              <Text style={styles.label}>Replay</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </View>
     );
@@ -264,17 +279,9 @@ export default class App extends React.PureComponent<Props, State> {
         style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
         onPress={this.transitionReveal}
       >
-        <Text
-          style={[
-            {
-              flex: 1,
-              opacity: this.state.replayNextEnabled ? 1 : 0
-            },
-            styles.label
-          ]}
-        >
-          Tap to reveal
-        </Text>
+        <Animated.View style={{ flex: 1, opacity: this.state.revealOpacity }}>
+          <Text style={styles.label}>Tap to reveal</Text>
+        </Animated.View>
       </TouchableOpacity>
     );
   };
