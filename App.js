@@ -87,7 +87,7 @@ const SCALE = [
   "b4"
 ];
 class Note {
-  static create(resourceId) {
+  static create(resourceId): Promise<PreparedNote> {
     return NativeModules.NativeAudioManager.prepare(resourceId).then(
       playerId => new PreparedNote(playerId)
     );
@@ -101,7 +101,7 @@ class PreparedNote {
     this._resourceId = resourceId;
   }
 
-  destroy() {
+  destroy(): Promise<void> {
     return NativeModules.NativeAudioManager.destroy(this._resourceId);
   }
 
@@ -122,7 +122,7 @@ class PlayingNote {
     this._promise = promise;
   }
 
-  stop() {
+  stop(): Promise<StoppedNote> {
     return NativeModules.NativeAudioManager.stopAndReset(this._resourceId).then(
       () => new StoppedNote(this._resourceId)
     );
@@ -136,7 +136,7 @@ class StoppedNote {
     this._resourceId = resourceId;
   }
 
-  destroy() {
+  destroy(): Promise<void> {
     return NativeModules.NativeAudioManager.destroy(this._resourceId);
   }
 }

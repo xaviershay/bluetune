@@ -1,6 +1,9 @@
 package com.auraltrainer;
 
 import android.media.MediaPlayer;
+import android.media.VolumeShaper;
+import android.media.VolumeShaper.Configuration;
+import android.media.VolumeShaper.Configuration.Builder;
 import android.net.Uri;
 
 import com.facebook.react.bridge.Promise;
@@ -110,17 +113,18 @@ public class MyAudioModule extends ReactContextBaseJavaModule {
       return;
     }
 
+      Configuration config = new Builder()
+              .setDuration(200)
+              .setCurve(new float[] {0.f, 1.f}, new float[] {0.f, 0.f})
+              .setInterpolatorType(Configuration.INTERPOLATOR_TYPE_LINEAR)
+              .build();
 
-    player.player.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
-      @Override
-      public void onSeekComplete(MediaPlayer mp) {
+    VolumeShaper shaper = player.player.createVolumeShaper(config);
+    shaper.apply(VolumeShaper.Operation.PLAY);
+    new android.os.Handler().postDelayed(() -> {
+        player.player.stop();
         promise.resolve(null);
-      }
-    });
-    // TODO: Error listener?
-    // TODO: state diagram doesn't allow this from PlaybackCompleted. Check behaviour.
-    player.player.pause();
-    player.player.seekTo(0);
+    }, 200);
   }
 
   @ReactMethod
