@@ -13,7 +13,6 @@
     "flow-cli": "^0.0.0-pre",
     "react": "16.8.3",
     "react-native": "0.59.5",
-    "react-native-audio-toolkit": "^1.0.6",
     "tonal": "^2.2.2"
   },
   "devDependencies": {

@@ -8,14 +8,14 @@
 
 import React from "react";
 import { Button, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Player } from "react-native-audio-toolkit";
 import { NativeModules } from "react-native";
 
 type Props = {};
 type State = {|
   interval: string,
   stage: string,
-  baseNote: string
+  baseNote: string,
+  replayNextEnabled: boolean
 |};
 
 const makeInterval = (name, semitones) => {
@@ -133,10 +133,10 @@ export default class App extends React.PureComponent<Props, State> {
   state = {
     interval: "2m",
     baseNote: "c2",
-    stage: "splash"
+    stage: "splash",
+    replayNextEnabled: false
   };
 
-  notes: { [string]: Player };
   playing: Array<PlayingNote>;
 
   constructor(props: Props) {
@@ -173,10 +173,12 @@ export default class App extends React.PureComponent<Props, State> {
   };
 
   transitionReveal = () => {
-    this.setState({ stage: "reveal" });
+    if (this.state.replayNextEnabled) this.setState({ stage: "reveal" });
   };
 
   playInterval = async () => {
+    this.setState({ replayNextEnabled: false });
+
     const interval = INTERVALS[this.state.interval];
 
     const baseNote = this.state.baseNote;
@@ -198,6 +200,7 @@ export default class App extends React.PureComponent<Props, State> {
 
     this.playing.push(notesToPlay[0].play());
     await wait(1000);
+    this.setState({ replayNextEnabled: true });
     this.playing.push(notesToPlay[1].play());
   };
 
@@ -250,14 +253,25 @@ export default class App extends React.PureComponent<Props, State> {
       <View style={styles.container}>
         <TouchableOpacity
           style={{ flex: 1, justifyContent: "space-between" }}
-          onPress={() => {
-            this.setState({ stage: "reveal" });
-          }}
+          onPress={this.transitionReveal}
         >
-          <Text style={[{ paddingTop: 32, fontSize: 32 }, styles.instructions]}>
+          <Text
+            style={[
+              {
+                paddingTop: 32,
+                fontSize: 32,
+                opacity: this.state.replayNextEnabled ? 1 : 0
+              },
+              styles.instructions
+            ]}
+          >
             Tap to reveal
           </Text>
-          <Button title="Replay" onPress={this.playInterval} />
+          <Button
+            title="Replay"
+            onPress={this.playInterval}
+            disabled={!this.state.replayNextEnabled}
+          />
         </TouchableOpacity>
       </View>
     );
@@ -278,6 +292,11 @@ export default class App extends React.PureComponent<Props, State> {
             {INTERVALS[this.state.interval].name}
           </Text>
         </TouchableOpacity>
+        <Button
+          title="Replay"
+          onPress={this.playInterval}
+          disabled={!this.state.replayNextEnabled}
+        />
       </View>
     );
   };
