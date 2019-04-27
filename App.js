@@ -22,7 +22,8 @@ type State = {|
   stage: string,
   baseNote: string,
   replayNextEnabled: boolean,
-  revealOpacity: Animated.Value
+  revealOpacity: Animated.Value,
+  version: number
 |};
 
 const makeInterval = (name, semitones) => {
@@ -100,6 +101,10 @@ class PreparedNote {
     this._resourceId = resourceId;
   }
 
+  destroy() {
+    return NativeModules.NativeAudioManager.destroy(this._resourceId);
+  }
+
   play(): PlayingNote {
     return new PlayingNote(
       this._resourceId,
@@ -142,7 +147,8 @@ export default class App extends React.PureComponent<Props, State> {
     baseNote: "c2",
     stage: "splash",
     replayNextEnabled: false,
-    revealOpacity: new Animated.Value(0)
+    revealOpacity: new Animated.Value(0),
+    version: 0
   };
 
   playing: Array<PlayingNote>;
@@ -190,16 +196,19 @@ export default class App extends React.PureComponent<Props, State> {
   };
 
   playInterval = async () => {
+    const version = this.state.version + 1;
     const interval = INTERVALS[this.state.interval];
 
     const baseNote = this.state.baseNote;
     const baseIndex = SCALE.indexOf(baseNote);
     const secondNote = SCALE[baseIndex + interval.semitones];
 
-    const notesToPlay = await Promise.all([
+    const notesToPlay: Array<PreparedNote> = await Promise.all([
       Note.create(baseNote),
       Note.create(secondNote)
     ]);
+
+    this.setState({ version: version });
 
     await Promise.all(
       this.playing.map(playingNote => playingNote.stop().then(x => x.destroy()))
@@ -209,17 +218,24 @@ export default class App extends React.PureComponent<Props, State> {
 
     this.playing = [];
 
-    this.playing.push(notesToPlay[0].play());
+    // Protect against continuing to play notes if a new interval has started playing.
+    const play = note => {
+      if (version === this.state.version) {
+        this.playing.push(note.play());
+      } else {
+        note.destroy();
+      }
+    };
+
+    play(notesToPlay[0]);
     await wait(1000);
-    // TODO: If you move from reveal to guess after replay and before second
-    // note has played, this second note will play erroneously because it hasn't
-    // been pushed into playing yet so the new player doesn't know to cancel it.
+    play(notesToPlay[1]);
+
     this.setState({ replayNextEnabled: true });
     Animated.timing(this.state.revealOpacity, {
       toValue: 1,
       duration: 750
     }).start();
-    this.playing.push(notesToPlay[1].play());
   };
 
   render() {
