@@ -9,6 +9,7 @@
 import React from "react";
 import { Button, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Player } from "react-native-audio-toolkit";
+import { NativeModules } from "react-native";
 
 type Props = {};
 type State = {|
@@ -77,45 +78,54 @@ const SCALE = [
   "bb4",
   "b4"
 ];
+class Note {
+  static create(resourceId) {
+    return NativeModules.NativeAudioManager.prepare(resourceId).then(
+      playerId => new PreparedNote(playerId)
+    );
+  }
+}
 
-class PromisePlayer {
-  _player: Player;
+class PreparedNote {
+  _resourceId: string;
 
-  constructor(filename) {
-    this._player = new Player(filename, { alwaysDestroy: false });
+  constructor(resourceId) {
+    this._resourceId = resourceId;
   }
 
-  prepare() {
-    return new Promise((resolve, errorHandler) => {
-      this._player.prepare(err => {
-        if (err) {
-          errorHandler(err);
-        }
-        resolve();
-      });
-    });
+  play(): PlayingNote {
+    return new PlayingNote(
+      this._resourceId,
+      NativeModules.NativeAudioManager.play(this._resourceId)
+    );
   }
+}
 
-  play() {
-    return new Promise((resolve, _) => {
-      this._player.play(() => resolve());
-    });
+class PlayingNote {
+  _resourceId: string;
+  _promise: Promise<void>;
+
+  constructor(resourceId, promise) {
+    this._resourceId = resourceId;
+    this._promise = promise;
   }
 
   stop() {
-    return new Promise((resolve, _) => {
-      this._player.stop(() => resolve());
-    });
+    return NativeModules.NativeAudioManager.stopAndReset(this._resourceId).then(
+      () => new StoppedNote(this._resourceId)
+    );
+  }
+}
+
+class StoppedNote {
+  _resourceId: string;
+
+  constructor(resourceId) {
+    this._resourceId = resourceId;
   }
 
   destroy() {
-    return new Promise((resolve, _) => {
-      this._player.destroy(() => resolve());
-    });
-  }
-
-  state() {
-    return this._player.state;
+    return NativeModules.NativeAudioManager.destroy(this._resourceId);
   }
 }
 
@@ -127,6 +137,7 @@ export default class App extends React.PureComponent<Props, State> {
   };
 
   notes: { [string]: Player };
+  playing: Array<PlayingNote>;
 
   constructor(props: Props) {
     super(props);
@@ -134,14 +145,11 @@ export default class App extends React.PureComponent<Props, State> {
     const n = Math.floor(Math.random() * possibleIntervals.length);
 
     this.state.interval = possibleIntervals[n];
-  }
-
-  componentDidMount() {
-    this.notes = {};
+    this.playing = [];
   }
 
   componentWillUnmount() {
-    this.notes.forEach(x => x.destroy());
+    this.playing.forEach(x => x.stop().then(x => x.destroy()));
   }
 
   transitionGuess = () => {
@@ -168,37 +176,29 @@ export default class App extends React.PureComponent<Props, State> {
     this.setState({ stage: "reveal" });
   };
 
-  playInterval = () => {
-    const stopPromises = Object.keys(this.notes)
-      .map(note => {
-        if (this.notes[note].canStop) {
-          return this.notes[note].stop();
-        }
-        return null;
-      })
-      .filter(Boolean);
-
+  playInterval = async () => {
     const interval = INTERVALS[this.state.interval];
 
     const baseNote = this.state.baseNote;
     const baseIndex = SCALE.indexOf(baseNote);
     const secondNote = SCALE[baseIndex + interval.semitones];
-    this.notes = {};
-    this.notes[baseNote] = new PromisePlayer(baseNote + ".mp3");
-    this.notes[secondNote] = new PromisePlayer(secondNote + ".mp3");
-    const preparePromises = [
-      this.notes[baseNote].prepare(),
-      this.notes[secondNote].prepare()
-    ];
 
-    // TODO: Handle starting new interval before last one finishes.
-    // TODO: this preparePromise doesn't really work, you can tell coz the
-    // setTimeout appears to take longer than it should.
-    Promise.all([...stopPromises, ...preparePromises])
-      .then(() => {
-        return this.notes[baseNote].play();
-      })
-      .then(() => setTimeout(() => this.notes[secondNote].play(), 500));
+    const notesToPlay = await Promise.all([
+      Note.create(baseNote),
+      Note.create(secondNote)
+    ]);
+
+    await Promise.all(
+      this.playing.map(playingNote => playingNote.stop().then(x => x.destroy()))
+    );
+
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    this.playing = [];
+
+    this.playing.push(notesToPlay[0].play());
+    await wait(1000);
+    this.playing.push(notesToPlay[1].play());
   };
 
   render() {

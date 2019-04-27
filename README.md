@@ -19,4 +19,7 @@ Some good free piano sound fonts (using "Nice Stienway" currently): https://site
 
 See `generate_midi.js` and `midi2mp3` in root directory to generate note mp3s using a soundfont.
 
-Reloading: `adb shell input text "RR"`
+Handy ADB commands:
+
+    adb shell input text "RR"              # Reload
+    adb shell input keyevent KEYCODE_MENU  # Show debug menu
