@@ -18,7 +18,7 @@ import { NativeModules } from "react-native";
 
 type NoteName = string;
 
-type Arpeggiation = "up" | "down" | "none";
+type Arpeggiation = "up" | "down";
 
 type IntervalTest = {|
   type: "interval",
@@ -39,7 +39,7 @@ type State = {|
   version: number
 |};
 
-const allArpeggiations: Array<Arpeggiation> = ["up", "down", "none"];
+const allArpeggiations: Array<Arpeggiation> = ["up", "down"];
 
 const makeInterval = (name, semitones) => {
   return {
@@ -86,7 +86,7 @@ function allTests(): { [string]: Test } {
   let tests = {};
   values(INTERVALS).forEach((interval: Interval) => {
     allArpeggiations.forEach(arpeggiation => {
-      tests[interval.name] = {
+      tests[interval.name + " (" + arpeggiation + ")"] = {
         type: "interval",
         name: interval.name,
         semitones: interval.semitones,
@@ -256,7 +256,7 @@ export default class App extends React.PureComponent<Props, State> {
       const baseIndex = SCALE.indexOf(baseNote);
       const secondNote = SCALE[baseIndex + test.semitones];
 
-      const notesToPlay: Array<PreparedNote> = await Promise.all([
+      let notesToPlay: Array<PreparedNote> = await Promise.all([
         Note.create(baseNote),
         Note.create(secondNote)
       ]);
@@ -282,6 +282,7 @@ export default class App extends React.PureComponent<Props, State> {
         }
       };
 
+      if (test.arpeggiation == "down") notesToPlay = notesToPlay.reverse();
       play(notesToPlay[0]);
       await wait(1000);
       play(notesToPlay[1]);
@@ -370,7 +371,9 @@ export default class App extends React.PureComponent<Props, State> {
         }}
         onPress={this.transitionGuess}
       >
-        <Text style={[{ flex: 1 }, styles.label]}>{this.state.testName}</Text>
+        <Text style={[{ flex: 1 }, styles.label]}>
+          {ALL_TESTS[this.state.testName].name}
+        </Text>
       </TouchableOpacity>
     );
   };
