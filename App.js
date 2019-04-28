@@ -16,15 +16,30 @@ import {
 } from "react-native";
 import { NativeModules } from "react-native";
 
+type NoteName = string;
+
+type Arpeggiation = "up" | "down" | "none";
+
+type IntervalTest = {|
+  type: "interval",
+  name: string,
+  arpeggiation: Arpeggiation,
+  semitones: number
+|};
+
+type Test = IntervalTest;
+
 type Props = {};
 type State = {|
-  interval: string,
+  testName: string,
   stage: string,
-  baseNote: string,
+  baseNote: NoteName,
   replayNextEnabled: boolean,
   revealOpacity: Animated.Value,
   version: number
 |};
+
+const allArpeggiations: Array<Arpeggiation> = ["up", "down", "none"];
 
 const makeInterval = (name, semitones) => {
   return {
@@ -47,6 +62,42 @@ const INTERVALS = {
   "7M": makeInterval("Major 7th", 11),
   "8P": makeInterval("Octave", 12)
 };
+
+type Map<T> = {
+  [key: string]: T
+};
+
+// Use native Object.values if it exists
+// Otherwise use Object.keys
+function values<T>(map: Map<T>): T[] {
+  return Object.values
+    ? // https://github.com/facebook/flow/issues/2221
+      // $FlowFixMe - Object.values currently does not have good flow support
+      Object.values(map)
+    : Object.keys(map).map((key: string): T => map[key]);
+}
+
+type Interval = {|
+  name: string,
+  semitones: number
+|};
+
+function allTests(): { [string]: Test } {
+  let tests = {};
+  values(INTERVALS).forEach((interval: Interval) => {
+    allArpeggiations.forEach(arpeggiation => {
+      tests[interval.name] = {
+        type: "interval",
+        name: interval.name,
+        semitones: interval.semitones,
+        arpeggiation: arpeggiation
+      };
+    });
+  });
+  return tests;
+}
+
+const ALL_TESTS = allTests();
 
 const SCALE = [
   "c2",
@@ -143,7 +194,7 @@ class StoppedNote {
 
 export default class App extends React.PureComponent<Props, State> {
   state = {
-    interval: "2m",
+    testName: "Minor 2nd",
     baseNote: "c2",
     stage: "splash",
     replayNextEnabled: false,
@@ -155,10 +206,6 @@ export default class App extends React.PureComponent<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    const possibleIntervals = Object.keys(INTERVALS);
-    const n = Math.floor(Math.random() * possibleIntervals.length);
-
-    this.state.interval = possibleIntervals[n];
     this.playing = [];
   }
 
@@ -167,26 +214,31 @@ export default class App extends React.PureComponent<Props, State> {
   }
 
   transitionGuess = () => {
-    const possibleIntervals = Object.keys(INTERVALS);
-    const n = Math.floor(Math.random() * possibleIntervals.length);
+    const possibleTests = Object.keys(ALL_TESTS);
+    const n = Math.floor(Math.random() * possibleTests.length);
 
     // Generate a new test
-    const interval = INTERVALS[possibleIntervals[n]];
-    const baseIndex = Math.floor(
-      Math.random() * (SCALE.length - interval.semitones)
-    );
+    const test = ALL_TESTS[possibleTests[n]];
+    if (test.type === "interval") {
+      // TODO: Handle non-ascending
+      const baseIndex = Math.floor(
+        Math.random() * (SCALE.length - test.semitones)
+      );
 
-    this.setState(
-      {
-        interval: possibleIntervals[n],
-        baseNote: SCALE[baseIndex],
-        stage: "guess",
-        replayNextEnabled: false
-      },
-      this.playInterval
-    );
+      this.setState(
+        {
+          testName: possibleTests[n],
+          baseNote: SCALE[baseIndex],
+          stage: "guess",
+          replayNextEnabled: false
+        },
+        this.playInterval
+      );
 
-    this.state.revealOpacity.setValue(0);
+      this.state.revealOpacity.setValue(0);
+    } else {
+      // Error!
+    }
   };
 
   transitionReveal = () => {
@@ -197,45 +249,51 @@ export default class App extends React.PureComponent<Props, State> {
 
   playInterval = async () => {
     const version = this.state.version + 1;
-    const interval = INTERVALS[this.state.interval];
+    const test = ALL_TESTS[this.state.testName];
 
-    const baseNote = this.state.baseNote;
-    const baseIndex = SCALE.indexOf(baseNote);
-    const secondNote = SCALE[baseIndex + interval.semitones];
+    if (test.type === "interval") {
+      const baseNote = this.state.baseNote;
+      const baseIndex = SCALE.indexOf(baseNote);
+      const secondNote = SCALE[baseIndex + test.semitones];
 
-    const notesToPlay: Array<PreparedNote> = await Promise.all([
-      Note.create(baseNote),
-      Note.create(secondNote)
-    ]);
+      const notesToPlay: Array<PreparedNote> = await Promise.all([
+        Note.create(baseNote),
+        Note.create(secondNote)
+      ]);
 
-    this.setState({ version: version });
+      this.setState({ version: version });
 
-    await Promise.all(
-      this.playing.map(playingNote => playingNote.stop().then(x => x.destroy()))
-    );
+      await Promise.all(
+        this.playing.map(playingNote =>
+          playingNote.stop().then(x => x.destroy())
+        )
+      );
 
-    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-    this.playing = [];
+      this.playing = [];
 
-    // Protect against continuing to play notes if a new interval has started playing.
-    const play = note => {
-      if (version === this.state.version) {
-        this.playing.push(note.play());
-      } else {
-        note.destroy();
-      }
-    };
+      // Protect against continuing to play notes if a new interval has started playing.
+      const play = note => {
+        if (version === this.state.version) {
+          this.playing.push(note.play());
+        } else {
+          note.destroy();
+        }
+      };
 
-    play(notesToPlay[0]);
-    await wait(1000);
-    play(notesToPlay[1]);
+      play(notesToPlay[0]);
+      await wait(1000);
+      play(notesToPlay[1]);
 
-    this.setState({ replayNextEnabled: true });
-    Animated.timing(this.state.revealOpacity, {
-      toValue: 1,
-      duration: 750
-    }).start();
+      this.setState({ replayNextEnabled: true });
+      Animated.timing(this.state.revealOpacity, {
+        toValue: 1,
+        duration: 750
+      }).start();
+    } else {
+      // Error!
+    }
   };
 
   render() {
@@ -312,9 +370,7 @@ export default class App extends React.PureComponent<Props, State> {
         }}
         onPress={this.transitionGuess}
       >
-        <Text style={[{ flex: 1 }, styles.label]}>
-          {INTERVALS[this.state.interval].name}
-        </Text>
+        <Text style={[{ flex: 1 }, styles.label]}>{this.state.testName}</Text>
       </TouchableOpacity>
     );
   };
